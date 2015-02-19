@@ -1,7 +1,7 @@
 ﻿define(function (require) {
     'use strict';
 
-    var YouTubePlayerView = require('background/view/youTubePlayerView');
+    var YouTubePlayerView = require('panel/view/youTubePlayerView');
 
     var YouTubePlayerRegion = Marionette.Region.extend({
         youTubePlayer: null,
@@ -9,12 +9,12 @@
         initialize: function (options) {
             this.youTubePlayer = options.youTubePlayer;
 
-            this.listenTo(Streamus.channels.backgroundArea.vent, 'attached', this._onBackgroundAreaAttached);
+            this.listenTo(Streamus.channels.panelArea.vent, 'attached', this._onPanelAreaAttached);
             this.listenTo(this.youTubePlayer, 'change:loading', this._onYouTubePlayerChangeLoading);
             this.listenTo(this.youTubePlayer, 'change:currentLoadAttempt', this._onYouTubePlayerChangeCurrentLoadAttempt);
         },
         
-        _onBackgroundAreaAttached: function () {
+        _onPanelAreaAttached: function () {
             if (this.youTubePlayer.get('loading')) {
                 this._showYouTubePlayerView();
             } else {

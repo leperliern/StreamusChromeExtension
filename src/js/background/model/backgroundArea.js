@@ -6,6 +6,7 @@
     var ChromeIconManager = require('background/model/chromeIconManager');
     var ChromeNotificationsManager = require('background/model/chromeNotificationsManager');
     var ChromeOmniboxManager = require('background/model/chromeOmniboxManager');
+    var ChromePanelManager = require('background/model/chromePanelManager');
     var ClientErrorManager = require('background/model/clientErrorManager');
     var DataSourceManager = require('background/model/dataSourceManager');
     var DebugManager = require('background/model/debugManager');
@@ -18,7 +19,6 @@
     var Stream = require('background/model/stream');
     var SyncManager = require('background/model/syncManager');
     var TabManager = require('background/model/tabManager');
-    var YouTubePlayer = require('background/model/youTubePlayer');
     var NextButton = require('background/model/buttons/nextButton');
     var PlayPauseButton = require('background/model/buttons/playPauseButton');
     var PreviousButton = require('background/model/buttons/previousButton');
@@ -28,7 +28,6 @@
 
     var BackgroundArea = Backbone.Model.extend({
         defaults: {
-            youTubePlayer: null,
             debugManager: null,
             foregroundUnloadTimeout: null
         },
@@ -44,12 +43,9 @@
             var browserSettings = new BrowserSettings();
             var settings = new Settings();
 
-            var youTubePlayer = new YouTubePlayer();
-            this.set('youTubePlayer', youTubePlayer);
-
             var player = new Player({
                 settings: settings,
-                youTubePlayer: youTubePlayer,
+                //youTubePlayer: youTubePlayer,
                 debugManager: debugManager
             });
             
@@ -121,6 +117,7 @@
             });
 
             var dataSourceManager = new DataSourceManager();
+            var chromePanelManager = new ChromePanelManager();
 
             var playlistsViewModel = new PlaylistsViewModel();
 

@@ -9,16 +9,17 @@
         webRequestCompleted: false,
         //  loaded is set to true when the iframes contentWindow is ready
         loaded: false,
-
+        
+        //  TODO: It's a bit confusing that I have to specify playerVars here instead of in YouTube's API hook. However,
+        //  I need to do so because I'm building the iframe myself rather than letting YouTube handle the construction.
         attributes: function () {
             return {
                 name: 'youtube-player',
                 frameborder: 0,
-                allowfullscreen: 1,
                 title: 'YouTube player',
-                width: 640,
-                height: 360,
-                src: 'https://www.youtube.com/embed/J1Ol6M0d9sg?enablejsapi=1&origin=chrome-extension://' + chrome.runtime.id
+                width: 356,
+                height: 200,
+                src: 'https://www.youtube.com/embed/P4Uv_4jGgAM?origin=chrome-extension://' + chrome.runtime.id + '&enablejsapi=1&controls=0&cc_load_policy=0&iv_load_policy=3&rel=0&showinfo=0&modestbranding=1'
             };
         },
         
@@ -34,7 +35,7 @@
             this._onChromeWebRequestBeforeSendHeaders = this._onChromeWebRequestBeforeSendHeaders.bind(this);
             this._onChromeWebRequestCompleted = this._onChromeWebRequestCompleted.bind(this);
 
-            var iframeUrlPattern = '*://*.youtube.com/embed/*?enablejsapi=1&origin=chrome-extension://' + chrome.runtime.id;
+            var iframeUrlPattern = '*://*.youtube.com/embed/*?origin=chrome-extension://' + chrome.runtime.id + '*';
 
             chrome.webRequest.onBeforeSendHeaders.addListener(this._onChromeWebRequestBeforeSendHeaders, {
                 urls: [iframeUrlPattern]

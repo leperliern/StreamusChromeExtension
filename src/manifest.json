@@ -78,7 +78,7 @@
 	},
 	"content_scripts": [
 		{
-			"matches": ["*://*.youtube.com/embed/*?enablejsapi=1&origin=chrome-extension:*"],
+			"matches": ["*://*.youtube.com/embed/*?origin=chrome-extension:*"],
 			"all_frames": true,
 			"js": ["js/thirdParty/lodash.js", "js/thirdParty/jquery.js", "js/inject/youTubeIFrameInject.js"]
 		},

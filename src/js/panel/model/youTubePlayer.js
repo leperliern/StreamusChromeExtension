@@ -1,7 +1,7 @@
 ﻿define(function (require) {
     'use strict';
 
-    var YouTubePlayerAPI = require('background/model/youTubePlayerAPI');
+    var YouTubePlayerAPI = require('panel/model/youTubePlayerAPI');
     var YouTubePlayerError = require('common/enum/youTubePlayerError');
 
     //  This is the actual YouTube Player API widget housed within the iframe.
@@ -20,19 +20,149 @@
                 iframeId: '',
                 //  Match on my specific iframe or else else this logic can leak into outside webpages and corrupt other YouTube embeds.
                 //  TODO: Keep this DRY with other area + leave comment for manifest.json.
-                youTubeEmbedUrl: '*://*.youtube.com/embed/*?enablejsapi=1&origin=chrome-extension://' + chrome.runtime.id,
+                youTubeEmbedUrl: '*://*.youtube.com/embed/*?origin=chrome-extension://' + chrome.runtime.id + '*',
                 //  Wait 6 seconds before each load attempt so that total time elapsed is one minute
                 maxLoadAttempts: 10,
                 loadAttemptDelay: 6000,
                 currentLoadAttempt: _initialLoadAttempt,
-                loadAttemptInterval: null
+                loadAttemptInterval: null,
+                port: null
             };
         },
         
         initialize: function () {
+            chrome.runtime.onConnect.addListener(this._onChromeRuntimeConnect.bind(this));
+
             this.listenTo(this.get('api'), 'change:ready', this._onApiChangeReady);
-            this.listenTo(Streamus.channels.foreground.vent, 'started', this._onForegroundStarted);
+            //this.listenTo(Streamus.channels.foreground.vent, 'started', this._onForegroundStarted);
             this.on('change:loading', this._onChangeLoading);
+            
+            //  Connect to background.html's player
+            var port = chrome.runtime.connect({
+                name: 'youTubePlayerConnectRequest'
+            });
+            
+            this.set('port', port);
+            
+            port.onMessage.addListener(function (message) {
+                switch(message.action) {
+                    case 'loadVideoById':
+                        this.loadVideoById(message.data);
+                        break;
+                    case 'cueVideoById':
+                        this.cueVideoById(message.data);
+                        break;
+                    case 'stop':
+                        this.stop();
+                        break;
+                    case 'pause':
+                        this.pause();
+                        break;
+                    case 'play':
+                        this.play();
+                        break;
+                    case 'preload':
+                        this.preload();
+                        break;
+                    case 'seekTo':
+                        this.seekTo(message.data);
+                        break;
+                    case 'setPlaybackQuality':
+                        this.setPlaybackQuality(message.data);
+                        break;
+                    case 'setVolume':
+                        this.setVolume(message.data);
+                        break;
+                    case 'setMuted':
+                        this.setMuted(message.data);
+                        break;
+                        
+                }
+            }.bind(this));
+
+            port.postMessage({
+                event: 'initial',
+                data: this
+            });
+
+            //  TODO: Refactor, maybe make generic w/ this.on('all)
+            this.on('change:ready', function(model, ready) {
+                port.postMessage({
+                    event: 'change:ready',
+                    ready: ready
+                });
+            });
+
+            this.on('change:state', function(model, state) {
+                port.postMessage({
+                    event: 'change:state',
+                    state: state
+                });
+            });
+
+            this.on('change:loading', function(model, loading) {
+                port.postMessage({
+                    event: 'change:loading',
+                    loading: loading
+                });
+            });
+
+            this.on('change:currentLoadAttempt', function(model, currentLoadAttempt) {
+                port.postMessage({
+                    event: 'change:currentLoadAttempt',
+                    currentLoadAttempt: currentLoadAttempt
+                });
+            });
+
+            this.on('youTubeError', function(model, youTubeError) {
+                port.postMessage({
+                    event: 'youTubeError',
+                    youTubeError: youTubeError
+                });
+            });
+        },
+        
+        _onChromeRuntimeConnect: function(port) {
+            //  TODO: keep string DRY
+            console.log('port name:', port.name);
+            if (port.name === 'youTubeIFrameConnectRequest') {
+                port.onMessage.addListener(this._onYouTubeIFrameMessage.bind(this));
+            }
+        },
+        
+        _onYouTubeIFrameMessage: function (message) {
+            var port = this.get('port');
+
+            //  It's better to be told when time updates rather than poll YouTube's API for the currentTime.
+            if (!_.isUndefined(message.currentTime)) {
+                port.postMessage({
+                    event: 'change:currentTime',
+                    currentTime: message.currentTime
+                });
+            }
+
+            //  YouTube's API for seeking/buffering doesn't fire events reliably.
+            //  Listen directly to the element for more responsive results.
+            if (!_.isUndefined(message.seeking)) {
+                port.postMessage({
+                    event: 'change:seeking',
+                    seeking: message.seeking
+                });
+            }
+
+            if (!_.isUndefined(message.error)) {
+                port.postMessage({
+                    event: 'iframeError',
+                    iframeError: message.error
+                });
+            }
+
+            if (!_.isUndefined(message.flashLoaded)) {
+                port.postMessage({
+                    event: 'flashLoaded',
+                    flashLoaded: message.flashLoaded
+                });
+            }
         },
         
         //  Preload is used to indicate that an attempt to load YouTube's API is hopefully going to come soon. However, if the iframe

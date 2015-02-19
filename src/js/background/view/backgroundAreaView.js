@@ -1,7 +1,6 @@
 ﻿define(function (require) {
     'use strict';
 
-    var YouTubePlayerRegion = require('background/view/youTubePlayerRegion');
     var ClipboardRegion = require('background/view/clipboardRegion');
     var BackgroundAreaTemplate = require('text!template/backgroundArea.html');
 
@@ -9,13 +8,8 @@
         id: 'backgroundArea',
         template: _.template(BackgroundAreaTemplate),
         
-        regions: function (options) {
+        regions: function () {
             return {
-                youTubePlayerRegion: {
-                    el: '#' + this.id + '-youTubePlayerRegion',
-                    regionClass: YouTubePlayerRegion,
-                    youTubePlayer: options.model.get('youTubePlayer')
-                },
                 clipboardRegion: {
                     el: '#' + this.id + '-clipboardRegion',
                     regionClass: ClipboardRegion

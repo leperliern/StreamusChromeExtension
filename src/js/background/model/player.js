@@ -39,8 +39,9 @@ define(function (require) {
                 refreshAlarmName: 'refreshAlarm_' + _.now(),
 
                 settings: null,
-                youTubePlayer: null,
-                debugManager: null
+                debugManager: null,
+                
+                youTubePlayerPort: null
             };
         },
         
@@ -59,18 +60,10 @@ define(function (require) {
             this.on('change:state', this._onChangeState);
 
             this.listenTo(this.get('settings'), 'change:songQuality', this._onChangeSongQuality);
-            this.listenTo(this.get('youTubePlayer'), 'change:ready', this._onYouTubePlayerChangeReady);
-            this.listenTo(this.get('youTubePlayer'), 'change:state', this._onYouTubePlayerChangeState);
-            this.listenTo(this.get('youTubePlayer'), 'youTubeError', this._onYouTubePlayerError);
-            this.listenTo(this.get('youTubePlayer'), 'change:loading', this._onYouTubePlayerChangeLoading);
-            this.listenTo(this.get('youTubePlayer'), 'change:currentLoadAttempt', this._onYouTubePlayerChangeCurrentLoadAttempt);
             this.listenTo(Streamus.channels.player.commands, 'playOnActivate', this._playOnActivate);
-
             chrome.runtime.onConnect.addListener(this._onChromeRuntimeConnect.bind(this));
             chrome.commands.onCommand.addListener(this._onChromeCommandsCommand.bind(this));
             chrome.alarms.onAlarm.addListener(this._onChromeAlarmsAlarm.bind(this));
-
-            this._ensureInitialState();
         },
         
         activateSong: function (song, timeInSeconds) {
@@ -88,9 +81,17 @@ define(function (require) {
 
                 //  TODO: I don't think I *always* want to keep the player going if a song is activated while one is playing, but maybe...
                 if (playOnActivate || playerState === PlayerState.Playing || playerState === PlayerState.Buffering) {
-                    this.get('youTubePlayer').loadVideoById(videoOptions);
+                    this.get('youTubePlayerPort').postMessage({
+                        action: 'loadVideoById',
+                        data: videoOptions
+                    });
+                    //this.get('youTubePlayer').loadVideoById(videoOptions);
                 } else {
-                    this.get('youTubePlayer').cueVideoById(videoOptions);
+                    this.get('youTubePlayerPort').postMessage({
+                        action: 'cueVideoById',
+                        data: videoOptions
+                    });
+                    //this.get('youTubePlayer').cueVideoById(videoOptions);
                 }
 
                 this.set({
@@ -134,7 +135,10 @@ define(function (require) {
         },
 
         stop: function () {
-            this.get('youTubePlayer').stop();
+            //this.get('youTubePlayer').stop();
+            this.get('youTubePlayerPort').postMessage({
+                action: 'stop'
+            });
 
             this.set({
                 loadedSong: null,
@@ -144,16 +148,32 @@ define(function (require) {
         },
 
         pause: function () {
-            this.get('youTubePlayer').pause();
+            //this.get('youTubePlayer').pause();
+            this.get('youTubePlayerPort').postMessage({
+                action: 'pause'
+            });
         },
             
         play: function () {
-            if (this.get('youTubePlayer').get('ready')) {
-                this.get('youTubePlayer').play();
+
+            if (this.get('ready')) {
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'play'
+                });
             } else {
                 this.set('playOnActivate', true);
-                this.get('youTubePlayer').preload();
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'preload'
+                });
             }
+
+            //  TODO: Can I just check to see if this is ready instead of youTubePlayer?
+            //if (this.get('youTubePlayer').get('ready')) {
+            //    this.get('youTubePlayer').play();
+            //} else {
+            //    this.set('playOnActivate', true);
+            //    this.get('youTubePlayer').preload();
+            //}
         },
 
         seekTo: function (timeInSeconds) {
@@ -165,7 +185,11 @@ define(function (require) {
                 if (state === PlayerState.Unstarted || state === PlayerState.SongCued) {
                     this.activateSong(this.get('loadedSong'), timeInSeconds);
                 } else {
-                    this.get('youTubePlayer').seekTo(timeInSeconds);
+                    this.get('youTubePlayerPort').postMessage({
+                        action: 'seekTo',
+                        data: timeInSeconds
+                    });
+                    //this.get('youTubePlayer').seekTo(timeInSeconds);
                 }
             } else {
                 this.set('currentTime', timeInSeconds);
@@ -196,33 +220,54 @@ define(function (require) {
         },
         
         //  Ensure that the initial state of the player properly reflects the state of its APIs
-        _ensureInitialState: function () {
-            this.set('ready', this.get('youTubePlayer').get('ready'));
-            this.set('loading', this.get('youTubePlayer').get('loading'));
+        _ensureInitialState: function (initialState) {
+            this.set('ready', initialState.ready);
+            //this.set('ready', this.get('youTubePlayer').get('ready'));
+            this.set('loading', initialState.loading);
+            //this.set('loading', this.get('youTubePlayer').get('loading'));
             //  TODO: How will I handle currentLoadAttempt w/ 2+ APIs? If both are loading they could be on separate attempts...?
-            this.set('currentLoadAttempt', this.get('youTubePlayer').get('currentLoadAttempt'));
+            this.set('currentLoadAttempt', initialState.currentLoadAttempt);
+            //this.set('currentLoadAttempt', this.get('youTubePlayer').get('currentLoadAttempt'));
         },
 
         //  Attempt to set playback quality to songQuality or highest possible.
         _onChangeSongQuality: function (model, songQuality) {
             var youTubeQuality = this._getYouTubeQuality(songQuality);
-            this.get('youTubePlayer').setPlaybackQuality(youTubeQuality);
+            //this.get('youTubePlayer').setPlaybackQuality(youTubeQuality);
+            this.get('youTubePlayerPort').postMessage({
+                action: 'setPlaybackQuality',
+                data: youTubeQuality
+            });
         },
         
         //  Update the volume whenever the UI modifies the volume property.
         _onChangeVolume: function (model, volume) {
             if (this.get('ready')) {
-                this.get('youTubePlayer').setVolume(volume);
+                //this.get('youTubePlayer').setVolume(volume);
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'setVolume',
+                    data: volume
+                });
             } else {
-                this.get('youTubePlayer').preload();
+                //this.get('youTubePlayer').preload();
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'preload'
+                });
             }
         },
         
         _onChangeMuted: function (model, muted) {
             if (this.get('ready')) {
-                this.get('youTubePlayer').setMuted(muted);
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'setMuted',
+                    data: muted
+                });
+                //this.get('youTubePlayer').setMuted(muted);
             } else {
-                this.get('youTubePlayer').preload();
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'preload'
+                });
+                //this.get('youTubePlayer').preload();
             }
         },
         
@@ -239,8 +284,18 @@ define(function (require) {
                 //  Load from Backbone.LocalStorage
                 this.fetch();
                 //  These values need to be set explicitly because the 'change' event handler won't fire if localStorage value is the same as default.
-                this.get('youTubePlayer').setVolume(this.get('volume'));
-                this.get('youTubePlayer').setMuted(this.get('muted'));
+                //this.get('youTubePlayer').setVolume(this.get('volume'));
+                //this.get('youTubePlayer').setMuted(this.get('muted'));
+                
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'setVolume',
+                    data: this.get('volume')
+                });
+                
+                this.get('youTubePlayerPort').postMessage({
+                    action: 'setMuted',
+                    data: this.get('muted')
+                });
                 
                 //  If an 'activateSong' command came in while the player was not ready, fulfill it now. 
                 var songToActivate = this.get('songToActivate');
@@ -265,38 +320,67 @@ define(function (require) {
         },
         
         _onChromeRuntimeConnect: function (port) {
-            if (port.name === 'youTubeIFrameConnectRequest') {
-                port.onMessage.addListener(this._onYouTubeIFrameMessage.bind(this));
+            //  TODO: Can I keep these strings DRY
+            if (port.name === 'youTubePlayerConnectRequest') {
+                port.onMessage.addListener(this._onYouTubePlayerMessage.bind(this));
+                //  TODO: I wonder what happens if I have multiple ports
+                this.set('youTubePlayerPort', port);
+
+                port.onDisconnect.addListener(this._onYouTubePlayerPortDisconnect.bind(this));
             }
         },
         
-        _onYouTubeIFrameMessage: function (message) {
-            //  It's better to be told when time updates rather than poll YouTube's API for the currentTime.
-            if (!_.isUndefined(message.currentTime)) {
-                this.set('currentTime', message.currentTime);
-            }
+        _onYouTubePlayerPortDisconnect: function () {
+            console.log('Disconnection detected');
 
-            //  YouTube's API for seeking/buffering doesn't fire events reliably.
-            //  Listen directly to the element for more responsive results.
-            if (!_.isUndefined(message.seeking)) {
-                if (message.seeking) {
-                    if (this.get('state') === PlayerState.Playing) {
-                        this.set('state', PlayerState.Buffering);
+            this.set('youTubePlayerPort', null);
+        },
+        
+        _onYouTubePlayerMessage: function (message) {
+            switch(message.event) {
+                case 'change:ready':
+                    this.set('ready', message.ready);
+                    break;
+                case 'change:state':
+                    var playerState = this._getPlayerState(message.state);
+                    this.set('state', playerState);
+                    break;
+                case 'change:loading':
+                    this.set('loading', message.loading);
+                    break;
+                case 'change:currentLoadAttempt':
+                    this.set('currentLoadAttempt', message.currentLoadAttempt);
+                    break;
+                case 'youTubeError':
+                    this.trigger('youTubeError', this, message.youTubeError);
+                    break;
+                case 'initial':
+                    this._ensureInitialState(message.data);
+                    break;
+                case 'change:currentTime':
+                    this.set('currentTime', message.currentTime);
+                    break;
+                case 'change:seeking':
+                    if (message.seeking) {
+                        if (this.get('state') === PlayerState.Playing) {
+                            this.set('state', PlayerState.Buffering);
+                        }
+                    } else {
+                        if (this.get('state') === PlayerState.Buffering) {
+                            this.set('state', PlayerState.Playing);
+                        }
                     }
-                } else {
-                    if (this.get('state') === PlayerState.Buffering) {
-                        this.set('state', PlayerState.Playing);
-                    }
-                }
-            }
-            
-            if (!_.isUndefined(message.error)) {
-                var error = new Error(message.error);
-                Streamus.channels.error.commands.trigger('log:error', error);
-            }
-            
-            if (!_.isUndefined(message.flashLoaded)) {
-                this.get('debugManager').set('flashLoaded', message.flashLoaded);
+                    break;
+                case 'iframeError':
+                    var iframeError = new Error(message.iframeError);
+                    Streamus.channels.error.commands.trigger('log:error', iframeError);
+                    break;
+                case 'flashLoaded':
+                    this.get('debugManager').set('flashLoaded', message.flashLoaded);
+                    break;
+                default:
+                    console.error('unhandled message');
+                    break;
             }
         },
 
@@ -317,34 +401,7 @@ define(function (require) {
                 this.refresh();
             }
         },
-        
-        _onYouTubePlayerChangeReady: function (model, ready) {
-            //  TODO: This will need to be smarter w/ SoundCloud support.
-            this.set('ready', ready);
-        },
-        
-        _onYouTubePlayerChangeState: function (model, youTubePlayerState) {
-            //  TODO: This will need to be smarter w/ SoundCloud support.
-            var playerState = this._getPlayerState(youTubePlayerState);
-            this.set('state', playerState);
-        },
-        
-        _onYouTubePlayerChangeLoading: function (model, loading) {
-            //  TODO: This will need to be smarter w/ SoundCloud support.
-            this.set('loading', loading);
-        },
-        
-        _onYouTubePlayerChangeCurrentLoadAttempt: function (model, currentLoadAttempt) {
-            //  TODO: This will need to be smarter w/ SoundCloud support.
-            this.set('currentLoadAttempt', currentLoadAttempt);
-        },
-        
-        //  TODO: In the future this should probably be generic and just emit an error which isn't tied to YouTube.
-        //  Emit errors so the foreground so can notify the user.
-        _onYouTubePlayerError: function (model, error) {
-            this.trigger('youTubeError', this, error);
-        },
-        
+
         _createRefreshAlarm: function () {
             if (!this.get('refreshAlarmCreated')) {
                 this.set('refreshAlarmCreated', true);
