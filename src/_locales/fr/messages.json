@@ -456,7 +456,7 @@
 		}
 	},
 	"searchResults": {
-		"message": "Rechercher résultat"
+		"message": "Résultats de recherche"
 	},
 	"collectionCantBeDeleted": {
 		"message": "Suppression de $collectionName$ impossible",
