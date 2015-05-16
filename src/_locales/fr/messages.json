@@ -1,4 +1,4 @@
-﻿{
+{
     "extensionName": {
         "message": "Streamus"
     },
@@ -524,5 +524,24 @@
     },
     "playlistUrl": {
         "message": "URL de la playlist"
+    },
+    "aboutStreamus": {
+        "message": "À propos de Streamus"
+    },
+    "applicationDetails": {
+        "message": "Détails de l'extension"
+    },
+    "openHomepage": {
+        "message": "Visiter notre site web"
+    },
+    "version": {
+        "message": "Version"
+    },
+    "openPatchNotes": {
+        "message": "Voir les notes de versions"
+    },
+    "moreActions": { 
+        "message":  "Plus d'actions"
     }
+}
 }
